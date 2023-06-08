@@ -77,17 +77,17 @@ def start_quizzing(service, sheet_id, pq):
         old_priority = word.get_priority()
         user_answer = input(f'{word.english}: ')
         if (user_answer == word.italian):
-            print("You got it!")
+            print("Bravo!")
             word.correct_count+=1
         else:
-            print("You might have missed it...")
-            print(f"Expected, Input: {word.italian}, {user_answer}")
-            is_correct = input("Verify correct or no (y/n)")
-            if is_correct == 'y':
-                print("Mi dispiace! Recording as correct.")
+            print("Penso di hai sbagliato... ")
+            print(f"Hai detto: {user_answer}, Previsto: {word.italian}")
+            is_correct = input("Coretto o no? (s/n): ")
+            if is_correct == 's':
+                print("Che sollievo! Mi dispiace... sto registrando come coretto.")
                 word.correct_count+=1
             else:
-                print("You'll get it next time!")
+                print("Farai meglio la prossima volta!")
         word.tested_count+=1
         word.last_test = datetime.today().date().strftime('%-m/%-d/%y')
         update_word_stats(service, sheet_id, word)
