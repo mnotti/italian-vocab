@@ -1,4 +1,4 @@
-Just a little script for my Italian Learning... probably won't be very helpful for anyone reading this!
+Just a little script for my Italian learning... probably won't be very helpful for anyone reading this!
 
 ## Premise 
  
