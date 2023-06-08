@@ -9,8 +9,10 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 import random
-import datetime
+from datetime import datetime
 import json
+
+from max_heap import MaxHeap
 
 
 # If modifying these scopes, delete the file token.json.
@@ -25,6 +27,18 @@ class Word:
     self.correct_count = correct_count
     self.tested_count = tested_count 
     self.last_test = last_test
+
+  def get_priority(self):
+    priority = 0
+    if self.last_test == '': # Accounts for if not tested
+        priority += 200
+    else:
+        priority += days_since_date_str(self.last_test)
+    if self.tested_count > 0:
+        percentage_incorrect = (self.tested_count - self.correct_count) / self.tested_count
+        priority += int(percentage_incorrect * 100) # Accounts for correct:incorrect ratio
+    priority += (100 - self.tested_count) # Accounts for total times tested
+    return priority
 
   # For debugging
   def __str__(self):
@@ -51,14 +65,16 @@ def main():
 
         # Parse words and start quizzing
         words = parse_rows_to_words(values)
-        start_quizzing_randomly(service, sheet_id, words)
+        pq = construct_priority_queue(words)
+        start_quizzing(service, sheet_id, pq)
 
     except HttpError as err:
         print(err)
 
-def start_quizzing_randomly(service, sheet_id, words):
-    while True: 
-        word = random.choice(words)
+def start_quizzing(service, sheet_id, pq):
+    while True:
+        word = pq.extract_max()
+        old_priority = word.get_priority()
         user_answer = input(f'{word.english}: ')
         if (user_answer == word.italian):
             print("You got it!")
@@ -73,24 +89,34 @@ def start_quizzing_randomly(service, sheet_id, words):
             else:
                 print("You'll get it next time!")
         word.tested_count+=1
-        word.last_test = datetime.date.today().strftime('%-m/%-d/%y')
+        word.last_test = datetime.today().date().strftime('%-m/%-d/%y')
         update_word_stats(service, sheet_id, word)
+        new_priority = word.get_priority()
+        print(f'{old_priority}->{new_priority}')
+        pq.insert(word, new_priority)
         continue
+
+def construct_priority_queue(words): 
+    pq = MaxHeap()
+    for word in words:
+        priority = word.get_priority()
+        pq.insert(word, priority)
+    return pq
 
 def parse_row_to_word(row, row_num): 
     word = Word(english = row[1], italian = row[0], row_num = row_num)
     try:
         word.tested_count = int(row[3])
     except: 
-        print("Row doesn't have tested_count column")
+        pass
     try: 
         word.correct_count = int(row[4])
     except: 
-        print("Row doesn't have correct_count column")
+       pass
     try: 
         word.last_test = row[6]
     except:
-        print("Row doesn't have last_test column")
+        pass
     return word
 
 def parse_rows_to_words(rows): 
@@ -111,16 +137,9 @@ def update_word_stats(service, sheet_id, word):
     service.spreadsheets().values().update(spreadsheetId=sheet_id, range=range, valueInputOption='USER_ENTERED', body=value_obj).execute()
 
 def authenticate(): 
-    """Shows basic usage of the Sheets API.
-    Prints values from a sample spreadsheet.
-    """
     creds = None
-    # The file token.json stores the user's access and refresh tokens, and is
-    # created automatically when the authorization flow completes for the first
-    # time.
     if os.path.exists('token.json'):
         creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
@@ -133,6 +152,9 @@ def authenticate():
             token.write(creds.to_json())
     return creds
 
+# Takes string in format 'MM/DD/YY'
+def days_since_date_str(date_str):
+    return (datetime.today().date() - datetime.strptime(date_str, '%m/%d/%y').date()).days
 
 if __name__ == '__main__':
     main()
