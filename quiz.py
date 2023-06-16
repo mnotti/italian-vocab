@@ -18,6 +18,7 @@ from max_heap import MaxHeap
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 WORDS_RANGE = 'Words!A2:G'
+WORDS_BEFORE_RETESTING_RANDOM = 3
 
 class Word:
   def __init__(self, english, italian, row_num, correct_count = 0, tested_count = 0, last_test = ''):
@@ -72,29 +73,43 @@ def main():
         print(err)
 
 def start_quizzing(service, sheet_id, pq):
+    session_words = [] #Words tested this session
+    word_num = 1
     while True:
-        word = pq.extract_max()
+        word = None
+        if word_num % WORDS_BEFORE_RETESTING_RANDOM == 0: 
+            word = get_random_word(session_words)
+        else:
+            word = pq.extract_max()
         old_priority = word.get_priority()
         user_answer = input(f'{word.english}: ')
+        correct = False
         if (user_answer == word.italian):
             print("Bravo!")
-            word.correct_count+=1
+            correct = True
         else:
-            print("Penso di hai sbagliato... ")
+            print("Penso che hai sbagliato... ")
             print(f"Hai detto: {user_answer}, Previsto: {word.italian}")
             is_correct = input("Coretto o no? (s/n): ")
             if is_correct == 's':
                 print("Che sollievo! Mi dispiace... sto registrando come coretto.")
-                word.correct_count+=1
+                correct = True
             else:
                 print("Farai meglio la prossima volta!")
         word.tested_count+=1
         word.last_test = datetime.today().date().strftime('%-m/%-d/%y')
+        if correct:
+            word.correct_count+=1
         update_word_stats(service, sheet_id, word)
         new_priority = word.get_priority()
         print(f'{old_priority}->{new_priority}')
-        pq.insert(word, new_priority)
+        word_num+=1
+        session_words.append(word)
+        #pq.insert(word, new_priority)
         continue
+
+def get_random_word(words):
+    return random.choice(words)
 
 def construct_priority_queue(words): 
     pq = MaxHeap()
